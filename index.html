@@ -408,7 +408,9 @@
         const MESH_META_URL = BASE + "250m_mesh_2024_GEOJSON/_tiles_mesh/metadata.json";
         const MESH_TILES = BASE + "250m_mesh_2024_GEOJSON/_tiles_mesh/{z}/{x}/{y}.pbf";
 
-        const LAND_GEOJSON_URL = BASE + "L01-25.geojson";
+        // const LAND_GEOJSON_URL = BASE + "L01-25.geojson";
+        const LAND_GEOJSON_URL = BASE + "L01-25.used-only.geojson";
+
         // KSJ L01 地価公示 2025（2025年1月1日時点）
         // 価格: L01_008 (円/㎡), 変動率: L01_009 (%), 年度: L01_007, 行政区域コード: L01_001, 所在/地番: L01_025
         const LAND_PRICE_KEY = "L01_008";
@@ -896,5 +898,6 @@
         });
     </script>
 </body>
+
 
 </html>
