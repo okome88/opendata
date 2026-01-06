@@ -1,0 +1,900 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>公共交通パワー指数 – Heatmap + 250m Mesh</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.15.0/dist/maplibre-gl.css" />
+    <script src="https://unpkg.com/maplibre-gl@5.15.0/dist/maplibre-gl.js"></script>
+
+    <!-- PMTiles -->
+    <script src="https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js"></script>
+
+    <style>
+        :root {
+            --bg: rgba(255, 255, 255, .92);
+            --bd: rgba(0, 0, 0, .14);
+            --tx: #111827;
+            --muted: #6b7280;
+            --shadow: 0 10px 30px rgba(0, 0, 0, .12);
+            --radius: 14px;
+        }
+
+        html,
+        body,
+        #map {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+        }
+
+        .ui {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            z-index: 10;
+            width: 340px;
+            max-width: calc(100vw - 24px);
+            background: var(--bg);
+            border: 1px solid var(--bd);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            color: var(--tx);
+            font: 13px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            overflow: hidden;
+            backdrop-filter: blur(6px);
+        }
+
+        .hdr {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(0, 0, 0, .08);
+            gap: 10px;
+        }
+
+        .title {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .title b {
+            font-size: 14px;
+        }
+
+        .title span {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .btn {
+            border: 1px solid rgba(0, 0, 0, .18);
+            background: #fff;
+            border-radius: 10px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font: 12px/1.1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        }
+
+        .btn:hover {
+            background: rgba(0, 0, 0, .03);
+        }
+
+        .body {
+            padding: 10px 12px;
+        }
+
+        .row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin: 8px 0;
+        }
+
+        .row label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .row input[type="checkbox"] {
+            transform: scale(1.05);
+        }
+
+        .sub {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .grid2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .card {
+            border: 1px solid rgba(0, 0, 0, .10);
+            border-radius: 12px;
+            padding: 8px 10px;
+            background: rgba(255, 255, 255, .75);
+        }
+
+        .k {
+            color: var(--muted);
+            font-size: 11px;
+        }
+
+        .v {
+            font-weight: 600;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        select,
+        input[type="number"] {
+            width: 100%;
+            border: 1px solid rgba(0, 0, 0, .16);
+            border-radius: 10px;
+            padding: 6px 8px;
+            background: #fff;
+            font: 13px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        }
+
+        .legend {
+            margin-top: 10px;
+            border-top: 1px solid rgba(0, 0, 0, .08);
+            padding-top: 10px;
+        }
+
+        .grad {
+            height: 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(0, 0, 0, .12);
+            background: #eee;
+        }
+
+        .legendRow {
+            display: flex;
+            justify-content: space-between;
+            color: var(--muted);
+            font-size: 11px;
+            margin-top: 6px;
+        }
+
+        .toast {
+            position: absolute;
+            left: 12px;
+            bottom: 12px;
+            z-index: 10;
+            background: rgba(17, 24, 39, .92);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, .12);
+            border-radius: 12px;
+            padding: 10px 12px;
+            box-shadow: var(--shadow);
+            max-width: min(560px, calc(100vw - 24px));
+            font: 12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            display: none;
+            backdrop-filter: blur(6px);
+        }
+
+        .toast b {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(0, 0, 0, .14);
+            background: rgba(255, 255, 255, .7);
+            color: var(--muted);
+            font-size: 11px;
+        }
+
+        .modalBg {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, .45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            padding: 16px;
+        }
+
+        .modal {
+            width: min(760px, 100%);
+            background: #fff;
+            border-radius: 16px;
+            border: 1px solid rgba(0, 0, 0, .12);
+            box-shadow: 0 30px 70px rgba(0, 0, 0, .25);
+            overflow: hidden;
+        }
+
+        .modalHdr {
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(0, 0, 0, .08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modalBody {
+            padding: 12px 14px;
+            color: #111827;
+            font: 13px/1.6 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        }
+
+        .code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            background: rgba(0, 0, 0, .04);
+            border: 1px solid rgba(0, 0, 0, .08);
+            border-radius: 12px;
+            padding: 10px;
+            overflow: auto;
+            white-space: pre;
+            font-size: 12px;
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <!-- Left UI -->
+    <div class="ui">
+        <div class="hdr">
+            <div class="title">
+                <b>公共交通パワー指数</b>
+            </div>
+            <button class="btn" id="btnHelp">使い方</button>
+        </div>
+
+        <div class="body">
+            <div style="margin-bottom:6px; font-size:12px; font-weight:600; color:var(--muted);">データ</div>
+            <div class="grid2">
+                <div class="card">
+                    <div style="margin-bottom:8px;">
+                        <label><input type="checkbox" id="ckMesh" checked> 人口メッシュ</label>
+                    </div>
+
+                    <div class="k">人口メッシュ Max（色の上限）</div>
+                    <input id="rgPopMax" type="range" min="100" max="2000" step="50" value="1500">
+                    <div class="v"><span id="lbPopMax">1500</span> 人</div>
+                    <div class="k" style="margin-top:8px;">メッシュ透明度</div>
+                    <input id="rgMeshOpacity" type="range" min="0" max="0.9" step="0.05" value="0.25">
+                </div>
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <label><input type="checkbox" id="ckLand" checked> 地価（公示）</label>
+                    </div>
+                    <div class="k">地価 Max（色の上限）</div>
+                    <input id="rgLandMax" type="range" min="100000" max="10000000" step="50000" value="10000000">
+                    <div class="v"><span id="lbLandMax">10000000</span> 円/㎡</div>
+                </div>
+            </div>
+
+            <div style="margin-top:12px; margin-bottom:6px; font-size:12px; font-weight:600; color:var(--muted);">
+                インフラパワー</div>
+            <div class="grid2">
+                <div class="card">
+                    <div style="margin-bottom:8px;">
+                        <label><input type="checkbox" id="ckTrain" checked> 鉄道</label>
+                    </div>
+
+                    <div class="k">鉄道ヒート半径（m）</div>
+                    <input id="rgTrainRadiusM" type="range" min="100" max="5000" step="50" value="1000">
+                    <div class="v"><span id="lbTrainRadiusM">1000</span> m</div>
+                </div>
+                <div class="card">
+                    <div style="margin-bottom:8px;">
+                        <label><input type="checkbox" id="ckBus" checked> バス</label>
+                    </div>
+
+                    <div class="k">バスヒート半径（m）</div>
+                    <input id="rgBusRadiusM" type="range" min="50" max="5000" step="50" value="500">
+                    <div class="v"><span id="lbBusRadiusM">500</span> m</div>
+                </div>
+            </div>
+
+            <div class="grid2" style="margin-top:12px;">
+                <div class="card">
+                    <div class="k">ヒートマップ透明度</div>
+                    <input id="rgHeatOpacity" type="range" min="0" max="1" step="0.05" value="1">
+                </div>
+            </div>
+
+            <div class="legend">
+                <div class="k">メッシュ凡例（人口_2025年度）</div>
+                <div class="grad"
+                    style="background: linear-gradient(90deg, rgba(0, 120, 255, .9), rgba(0, 255, 200, .9), rgba(255, 240, 0, .95), rgba(255, 140, 0, .95), rgba(255, 0, 0, .95));">
+                </div>
+                <div class="legendRow">
+                    <span>低 (0)</span><span>高 (Max)</span>
+                </div>
+
+                <div class="k" style="margin-top:12px;">ヒートマップ凡例（交通密度）</div>
+                <div class="grad"
+                    style="background: linear-gradient(90deg, rgba(0,180,0,0.2) 10%, rgba(90,220,40,0.35) 25%, rgba(255,240,80,0.55) 45%, rgba(255,170,0,0.78) 70%, rgba(255,95,0,0.92) 100%);">
+                </div>
+                <div class="legendRow">
+                    <span>疎</span><span>密</span>
+                </div>
+
+                <div class="k" style="margin-top:12px;">地価凡例（公示価格）</div>
+                <div class="grad"
+                    style="background: linear-gradient(90deg, rgba(44,123,182,0.9) 0%, rgba(171,217,233,0.9) 10%, rgba(255,255,191,0.9) 30%, rgba(253,174,97,0.9) 50%, rgba(215,25,28,0.9) 100%);">
+                </div>
+                <div class="legendRow">
+                    <span>安</span><span>高 (Max)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <!-- Help modal -->
+    <div class="modalBg" id="modalBg">
+        <div class="modal">
+            <div class="modalHdr">
+                <b>使い方（他の人向け）</b>
+                <button class="btn" id="btnClose">閉じる</button>
+            </div>
+            <div class="modalBody">
+                <div>このページは「鉄道・バス停の密度（Heatmap）」と「250m メッシュ（人口など）」を重ねて表示します。</div>
+
+                <div style="margin-top:10px;">
+                    <b>よくあるつまずき</b>
+                    <ul>
+                        <li>PMTiles は <b>Range（Byte Serving）対応のHTTPサーバ</b>が必要です（file:// 直開きは不可）。</li>
+                        <li>Vector tile の URL テンプレート <span class="muted">{z}/{x}/{y}</span> は <b>URLエンコードしない</b>必要があります。
+                        </li>
+                    </ul>
+                </div>
+
+                <div style="margin-top:10px;">
+                    <b>起動例（Windows）</b>
+                    <div class="code">cd C:\Users\daoto\.vscode\code\opendata
+                        npx http-server -p 8000 -c-1</div>
+                </div>
+
+                <div style="margin-top:10px;">
+                    <b>ファイル配置（このHTMLから見た相対パス）</b>
+                    <div class="code">heatmap/train.pmtiles
+                        heatmap/bus.pmtiles
+                        250m_mesh_2024_GEOJSON/_tiles_mesh/metadata.json
+                        250m_mesh_2024_GEOJSON/_tiles_mesh/{z}/{x}/{y}.pbf
+                        L01-25.geojson</div>
+                </div>
+
+                <div style="margin-top:10px;">
+                    <b>軽量化のコツ</b>
+                    <ul>
+                        <li><b>メッシュ表示開始ズーム</b>を 8〜10 に上げる（全国表示時は描かない）</li>
+                        <li>表示モードを <b>枠線のみ</b>にすると最軽量</li>
+                        <li>地価は <b>点表示のみ</b>（クラスタなし）で、価格に応じて色が変わります。</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ==========================
+           ✅ パス設定（重要）
+           - {z}/{x}/{y} は URL() で作ると %7Bz%7D にエンコードされるので禁止
+           - 「文字列連結」でテンプレをそのまま保持する
+           ========================== */
+        const BASE = location.origin + location.pathname.replace(/[^\/]*$/, "");
+        const TRAIN_PMTILES_URL = BASE + "heatmap/train.pmtiles";
+        const BUS_PMTILES_URL = BASE + "heatmap/bus.pmtiles";
+        const MESH_META_URL = BASE + "250m_mesh_2024_GEOJSON/_tiles_mesh/metadata.json";
+        const MESH_TILES = BASE + "250m_mesh_2024_GEOJSON/_tiles_mesh/{z}/{x}/{y}.pbf";
+
+        const LAND_GEOJSON_URL = BASE + "L01-25.geojson";
+        // KSJ L01 地価公示 2025（2025年1月1日時点）
+        // 価格: L01_008 (円/㎡), 変動率: L01_009 (%), 年度: L01_007, 行政区域コード: L01_001, 所在/地番: L01_025
+        const LAND_PRICE_KEY = "L01_008";
+        const LAND_RATE_KEY = "L01_009";
+
+        const TRAIN_LAYER = "train";
+        const BUS_LAYER = "bus";
+        const MESH_LAYER = "mesh";
+
+        const POP_KEY = "PTN_2025";   // tippecanoe -T PTN_2025:float
+        const HEAT_W_KEY = "weight";  // PMTiles内の weight を想定
+
+        /* ==========================
+           UI helpers
+           ========================== */
+        const $ = (id) => document.getElementById(id);
+        const toast = $("toast");
+        function showToast(title, msg) {
+            toast.innerHTML = `<b>${title}</b>${msg}`;
+            toast.style.display = "block";
+            clearTimeout(showToast._t);
+            showToast._t = setTimeout(() => toast.style.display = "none", 6000);
+        }
+
+        /* ==========================
+           Base styles
+           ========================== */
+        const BASE_STYLES = {
+            liberty: "https://tiles.openfreemap.org/styles/liberty",
+            positron: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+            dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
+        };
+
+        /* ==========================
+           Map init
+           ========================== */
+        const map = new maplibregl.Map({
+            container: "map",
+            style: BASE_STYLES.liberty,
+            center: [139.7, 35.6],
+            zoom: 7.5,
+            pitch: 0,
+            bearing: 0,
+            hash: true,
+            renderWorldCopies: false
+        });
+        map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+
+        /* ==========================
+           PMTiles protocol
+           ========================== */
+        const protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol("pmtiles", protocol.tile);
+        protocol.add(new pmtiles.PMTiles(TRAIN_PMTILES_URL));
+        protocol.add(new pmtiles.PMTiles(BUS_PMTILES_URL));
+
+        /* ==========================
+           Expressions
+           ========================== */
+        const num = (k) => ["coalesce", ["to-number", ["get", k]], 0];
+        const clamp01 = (expr) => ["min", 1, ["max", 0, expr]];
+
+        // ==========================
+        // ✅ 「実寸サイズ」半径（メートル → ピクセル換算）
+        // heatmap-radius は「px」指定なので、現在の中心緯度・ズームから換算して毎回更新する。
+        // ここだけ数値を変えれば、実際の半径（m）を簡単に調整できる。
+        // ==========================
+        const TRAIN_HEAT_RADIUS_M = 1000; // 例: 500m（必要に応じて変更）
+        const BUS_HEAT_RADIUS_M = 500; // 例: 300m（必要に応じて変更）
+
+        function metersToPixels(meters, zoom, latDeg) {
+            const earthCirc = 40075016.68557849; // meters (WebMercator)
+            const lat = latDeg * Math.PI / 180;
+            const mPerPx = (earthCirc * Math.cos(lat)) / (512 * Math.pow(2, zoom));
+            return meters / Math.max(mPerPx, 1e-9);
+        }
+
+        function updateRealSizeHeatRadius() {
+            const c = map.getCenter();
+            const z = map.getZoom();
+            const trainM = Number($("rgTrainRadiusM")?.value || TRAIN_HEAT_RADIUS_M);
+            const busM = Number($("rgBusRadiusM")?.value || BUS_HEAT_RADIUS_M);
+            const pxTrain = metersToPixels(trainM, z, c.lat);
+            const pxBus = metersToPixels(busM, z, c.lat);
+
+            // でかすぎると重いので上限を設定（必要なら上げてOK）
+            if (map.getLayer("train_heat")) map.setPaintProperty("train_heat", "heatmap-radius", Math.min(512, Math.max(2, pxTrain)));
+            if (map.getLayer("bus_heat")) map.setPaintProperty("bus_heat", "heatmap-radius", Math.min(512, Math.max(2, pxBus)));
+        }
+
+        function heatColor() {
+            return [
+                "interpolate", ["linear"], ["heatmap-density"],
+                0.00, "rgba(0,0,0,0)",
+                0.10, "rgba(0,180,0,0.20)",
+                0.25, "rgba(90,220,40,0.35)",
+                0.45, "rgba(255,240,80,0.55)",
+                0.70, "rgba(255,170,0,0.78)",
+                1.00, "rgba(255,95,0,0.92)"
+            ];
+        }
+
+        function meshChoropleth(popMax) {
+            // popMax: スライダーで調整する「色の上限」
+            const v = num(POP_KEY);
+            const M = Math.max(1, Number(popMax || 1500));
+            const t = ["min", 1, ["max", 0, ["/", v, M]]];
+
+            return [
+                "interpolate", ["linear"], t,
+                0.00, "rgba(0,120,255,0.85)",   // 青
+                0.20, "rgba(0,255,200,0.85)",   // 青緑
+                0.55, "rgba(255,240,0,0.90)",   // 黄
+                0.90, "rgba(255,140,0,0.92)",   // 橙
+                1.00, "rgba(255,0,0,0.95)"      // 赤（上限）
+            ];
+        }
+
+
+        function landColor(landMax) {
+            const v = ["coalesce", ["to-number", ["get", LAND_PRICE_KEY]], 0];
+            const M = Math.max(1, Number(landMax || 10000000));
+            const s1 = Math.round(M * 0.10);
+            const s2 = Math.round(M * 0.30);
+            const s3 = Math.round(M * 0.50);
+            return [
+                "interpolate",
+                ["linear"],
+                v,
+                0, "rgba(44,123,182,0.90)",   // 青
+                s1, "rgba(171,217,233,0.90)",  // 水色
+                s2, "rgba(255,255,191,0.90)",  // 黄
+                s3, "rgba(253,174,97,0.90)",   // 橙
+                M, "rgba(215,25,28,0.90)"     // 赤（上限）
+            ];
+        }
+
+
+
+
+        /* ==========================
+           Layer utils
+           ========================== */
+        function setVisible(id, on) {
+            if (!map.getLayer(id)) return;
+            map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+        }
+        function setOpacity(id, prop, val) {
+            if (!map.getLayer(id)) return;
+            map.setPaintProperty(id, prop, val);
+        }
+        function setMinZoom(id, minZ) {
+            if (!map.getLayer(id)) return;
+            map.setLayerZoomRange(id, minZ, 24);
+        }
+
+        /* ==========================
+           Load
+           ========================== */
+        let meshLoadedOnce = false;
+
+        map.on("load", async () => {
+            // --- mesh source ---
+            map.addSource("mesh_src", { type: "vector", tiles: [MESH_TILES], minzoom: 0, maxzoom: 14 });
+
+            // --- mesh layers ---
+            map.addLayer({
+                id: "mesh_fill",
+                type: "fill",
+                source: "mesh_src",
+                "source-layer": MESH_LAYER,
+                paint: {
+                    "fill-antialias": false,
+                    "fill-color": meshChoropleth(Number($("rgPopMax")?.value || 1500)),
+                    "fill-opacity": 0.25,
+                    "fill-outline-color": "rgba(0,0,0,0)"
+                }
+            });
+
+            map.addLayer({
+                id: "mesh_line",
+                type: "line",
+                source: "mesh_src",
+                "source-layer": MESH_LAYER,
+                paint: {
+                    "line-color": "rgba(0,0,0,0.35)",
+                    "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.3, 12, 0.9, 15, 1.4],
+                    "line-opacity": 0.9
+                }
+            });
+
+            // --- PMTiles sources ---
+            map.addSource("train_src", { type: "vector", url: `pmtiles://${TRAIN_PMTILES_URL}` });
+            map.addSource("bus_src", { type: "vector", url: `pmtiles://${BUS_PMTILES_URL}` });
+
+            const wTrain = ["max", 0.25, clamp01(num(HEAT_W_KEY))]; // ★ weight底上げ（見える保証）
+            const wBus = ["max", 0.25, clamp01(num(HEAT_W_KEY))]; // ★ weight底上げ（見える保証）
+
+            // Heatmap (maxzoom 12) + points (minzoom 12)
+            map.addLayer({
+                id: "train_heat",
+                type: "heatmap",
+                source: "train_src",
+                "source-layer": TRAIN_LAYER,
+                minzoom: 9,
+                paint: {
+                    "heatmap-weight": wTrain,
+                    "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 6, 0.55, 10, 0.95, 12, 1.15],
+                    "heatmap-radius": 30,
+                    "heatmap-opacity": 1.0,
+                    "heatmap-color": heatColor()
+                }
+            });
+
+            map.addLayer({
+                id: "bus_heat",
+                type: "heatmap",
+                source: "bus_src",
+                "source-layer": BUS_LAYER,
+                minzoom: 9,
+                paint: {
+                    "heatmap-weight": wBus,
+                    "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 6, 0.55, 10, 0.95, 12, 1.15],
+                    "heatmap-radius": 30,
+                    "heatmap-opacity": 1.0,
+                    "heatmap-color": heatColor()
+                }
+            });
+
+            map.addLayer({
+                id: "train_pts",
+                type: "circle",
+                source: "train_src",
+                "source-layer": TRAIN_LAYER,
+                minzoom: 12,
+                paint: {
+                    "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 3, 16, 8],
+                    "circle-color": "rgba(0,200,60,0.9)",
+                    "circle-opacity": 0.9,
+                    "circle-stroke-width": 0.6,
+                    "circle-stroke-color": "rgba(0,0,0,0.35)"
+                }
+            });
+
+            map.addLayer({
+                id: "bus_pts",
+                type: "circle",
+                source: "bus_src",
+                "source-layer": BUS_LAYER,
+                minzoom: 12,
+                paint: {
+                    "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 3, 16, 8],
+                    "circle-color": "rgba(255,140,0,0.9)",
+                    "circle-opacity": 0.9,
+                    "circle-stroke-width": 0.6,
+                    "circle-stroke-color": "rgba(0,0,0,0.35)"
+                }
+            });
+
+            // --- 地価（公示）: GeoJSON + clustering ---
+            map.addSource("land_src", {
+                type: "geojson",
+                data: LAND_GEOJSON_URL
+            });
+
+            // --- 地価（公示）: GeoJSON（点表示のみ / クラスタなし） ---
+
+            // 個別ポイント（地価）: クリック確認用（クラスタなし）
+            map.addLayer({
+                id: "land_point",
+                type: "circle",
+                source: "land_src",
+                minzoom: 0,
+                paint: {
+                    // 地価（円/㎡）で色を変動（上限はスライダーで変更）
+                    // ※ landColor(max) は MapLibre expression（配列）を返す
+                    "circle-color": landColor(Number($("rgLandMax")?.value || 10000000)),
+
+                    // 点サイズ（従来の約2倍）
+                    "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 4, 16, 12],
+                    "circle-opacity": 0.9,
+                    "circle-stroke-width": 0.7,
+                    "circle-stroke-color": "rgba(0,0,0,0.35)"
+                }
+            });
+
+            // Individual points (color by land price)
+            // Default: mesh starts at z8 (perf)
+            setMinZoom("mesh_fill", 8);
+            setMinZoom("mesh_line", 8);
+
+            // Fit bounds once (optional)
+            try {
+                const r = await fetch(MESH_META_URL);
+                if (r.ok) {
+                    const meta = await r.json();
+                    let b = meta && meta.bounds;
+                    if (typeof b === "string") b = b.split(",").map(Number);
+                    if (Array.isArray(b) && b.length === 4 && b.every(Number.isFinite)) {
+                        map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 18, duration: 0 });
+                    }
+                }
+            } catch (_) { }
+            // UI sync
+            updateSliderLabels();
+            syncUI();
+            updateRealSizeHeatRadius();
+
+            showToast("読み込み完了", "左上からレイヤ切替・透明度・軽量化設定ができます。");
+        });
+
+        /* ==========================
+           Mesh load state / errors
+           ========================== */
+        map.on("sourcedata", (e) => {
+            if (e.sourceId === "mesh_src" && e.isSourceLoaded) {
+                meshLoadedOnce = true;
+                $("meshState").textContent = "ready";
+            }
+        });
+
+        map.on("error", (e) => {
+            // PMTiles / tile fetch failures are common; show a friendly hint once
+            const msg = (e && e.error && e.error.message) ? e.error.message : "";
+            if (!meshLoadedOnce && msg && msg.toLowerCase().includes("failed to fetch")) {
+                showToast("タイル取得に失敗", "サーバの起動方法とパスを「使い方」で確認してください。");
+            }
+        });
+
+        map.on("moveend", updateRealSizeHeatRadius);
+        map.on("zoomend", updateRealSizeHeatRadius);
+
+        /* ==========================
+           Click popup (mesh + points)
+           ========================== */
+        map.on("click", (e) => {
+            // 地価（公示）個別点 → 詳細
+            const landPts = map.queryRenderedFeatures(e.point, { layers: ["land_point"] });
+            if (landPts.length) {
+                const p = landPts[0].properties || {};
+                const price = Number(p[LAND_PRICE_KEY] ?? 0);
+                const rate = Number(p[LAND_RATE_KEY] ?? 0);
+                const year = p.L01_007 ?? "";
+                const code = p.L01_001 ?? "";
+                const addr = p.L01_025 ?? "";
+                new maplibregl.Popup({ closeButton: true, closeOnClick: true })
+                    .setLngLat(e.lngLat)
+                    .setHTML(`
+        <div style="font:12px/1.45 system-ui,sans-serif">
+          <b>地価公示</b><br>
+          価格: ${Number.isFinite(price) ? price.toLocaleString() : "0"} 円/㎡<br>
+          対前年変動率: ${Number.isFinite(rate) ? rate.toFixed(2) : "0.00"} %<br>
+          年度: ${year}<br>
+          行政区域コード: ${code}<br>
+          所在・地番: ${addr}
+        </div>
+      `)
+                    .addTo(map);
+                return;
+            }
+            const feats = map.queryRenderedFeatures(e.point, { layers: ["mesh_fill", "train_pts", "bus_pts"] });
+            if (!feats.length) return;
+
+            const f = feats[0];
+            const p = f.properties || {};
+
+            let html = "";
+            if (f.layer.id === "mesh_fill") {
+                const pop = Number(p[POP_KEY] ?? 0);
+                html = `
+      <b>250m メッシュ</b><br>
+      人口_2025年度: ${Number.isFinite(pop) ? pop.toFixed(3) : "0"}
+    `;
+            } else if (f.layer.id === "train_pts") {
+                const w = Number(p[HEAT_W_KEY] ?? 0);
+                html = `
+      <b>鉄道</b><br>
+      停留所名: ${p.stop_name ?? p.name ?? ""}<br>
+      重み: ${Number.isFinite(w) ? w.toFixed(4) : "0"}
+    `;
+            } else {
+                const w = Number(p[HEAT_W_KEY] ?? 0);
+                html = `
+      <b>バス</b><br>
+      停留所名: ${p.stop_name ?? p.name ?? ""}<br>
+      重み: ${Number.isFinite(w) ? w.toFixed(4) : "0"}
+    `;
+            }
+
+            new maplibregl.Popup({ closeButton: true, closeOnClick: true })
+                .setLngLat(e.lngLat)
+                .setHTML(`<div style="font:12px/1.45 system-ui,sans-serif">${html}</div>`)
+                .addTo(map);
+        });
+
+        /* ==========================
+           UI actions
+           ========================== */
+
+        function formatInt(n) {
+            const x = Math.round(Number(n) || 0);
+            return x.toString();
+        }
+
+        function updateSliderLabels() {
+            if ($("lbTrainRadiusM")) $("lbTrainRadiusM").textContent = formatInt($("rgTrainRadiusM").value);
+            if ($("lbBusRadiusM")) $("lbBusRadiusM").textContent = formatInt($("rgBusRadiusM").value);
+            if ($("lbPopMax")) $("lbPopMax").textContent = formatInt($("rgPopMax").value);
+            if ($("lbLandMax")) $("lbLandMax").textContent = formatInt($("rgLandMax").value);
+        }
+
+        function updateMeshColor() {
+            const popMax = Number($("rgPopMax")?.value || 1500);
+            if (map.getLayer("mesh_fill")) {
+                map.setPaintProperty("mesh_fill", "fill-color", meshChoropleth(popMax));
+            }
+        }
+
+        function updateLandColor() {
+            const landMax = Number($("rgLandMax")?.value || 10000000);
+            if (map.getLayer("land_point")) {
+                map.setPaintProperty("land_point", "circle-color", landColor(landMax));
+            }
+        }
+
+        function syncUI() {
+            // toggles
+            const meshOn = $("ckMesh").checked;
+            // Mode is always choropleth
+            setVisible("mesh_fill", meshOn);
+            setVisible("mesh_line", false);
+            setVisible("train_heat", $("ckTrain").checked);
+            setVisible("train_pts", $("ckTrain").checked);
+
+            setVisible("bus_heat", $("ckBus").checked);
+            setVisible("bus_pts", $("ckBus").checked);
+            // land (地価)
+            const landOn = $("ckLand").checked;
+            setVisible("land_point", landOn);
+
+            // opacity
+            // opacity
+            const meshOp = Number($("rgMeshOpacity")?.value || 0.25);
+            const heatOp = Number($("rgHeatOpacity")?.value || 1.0);
+
+            // メッシュ透明度をそのまま適用 (以前はヒートON時に強制的に0.15にしていた)
+            if (map.getLayer("mesh_fill")) setOpacity("mesh_fill", "fill-opacity", meshOp);
+            if (map.getLayer("train_heat")) setOpacity("train_heat", "heatmap-opacity", heatOp);
+            if (map.getLayer("bus_heat")) setOpacity("bus_heat", "heatmap-opacity", heatOp);
+
+            // min zoom (perf) fixed to 8
+            const minZ = 8;
+            setMinZoom("mesh_fill", minZ);
+            setMinZoom("mesh_line", minZ);
+
+            updateSliderLabels();
+            updateMeshColor();
+            updateLandColor();
+            updateRealSizeHeatRadius();
+        }
+
+        // event listeners
+        ["ckMesh", "ckTrain", "ckBus", "ckLand", "rgMeshOpacity", "rgHeatOpacity",
+            "rgTrainRadiusM", "rgBusRadiusM", "rgPopMax", "rgLandMax"]
+            .forEach(id => {
+                const el = $(id);
+                if (el) el.addEventListener("input", syncUI);
+            });
+
+
+
+        /* Help modal */
+        $("btnHelp").onclick = () => { $("modalBg").style.display = "flex"; };
+        $("btnClose").onclick = () => { $("modalBg").style.display = "none"; };
+        $("modalBg").addEventListener("click", (e) => { if (e.target === $("modalBg")) $("modalBg").style.display = "none"; });
+
+        /* First hints */
+        $("meshState").textContent = "loading";
+        updatePos();
+
+        // Friendly note about sprite warnings
+        map.on("styleimagemissing", (e) => {
+            // Many public styles have missing icons; ignore silently for UX.
+            // You could add placeholders via map.addImage() if needed.
+        });
+    </script>
+</body>
+
+</html>
