@@ -98,22 +98,33 @@
       display:none; align-items:center; justify-content:center;
       z-index:20; padding:16px;
     }
-    .modal{
-      width:min(760px, 100%);
-      background:#fff; border-radius:16px;
-      border:1px solid rgba(0,0,0,.12);
-      box-shadow:0 30px 70px rgba(0,0,0,.25);
-      overflow:hidden;
-    }
+.modal{
+  width: min(760px, 100%);
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, .12);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, .25);
+  overflow: hidden;
+
+  /* 追加：画面からはみ出さない */
+  max-height: min(80vh, 720px);
+  display: flex;
+  flex-direction: column;
+}
     .modalHdr{
       padding:12px 14px;
       border-bottom:1px solid rgba(0,0,0,.08);
       display:flex; justify-content:space-between; align-items:center; gap:10px;
     }
-    .modalBody{
-      padding:12px 14px; color:#111827;
-      font:13px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-    }
+
+.modalBody{
+  padding: 12px 14px;
+  color: #111827;
+  font: 13px/1.6 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+
+  /* 追加：本文だけスクロール */
+  overflow-y: auto;
+}
     .code{
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       background:rgba(0,0,0,.04);
@@ -792,4 +803,5 @@
   </script>
 </body>
 </html>
+
 
