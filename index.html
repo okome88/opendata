@@ -511,6 +511,14 @@
     let meshLoadedOnce = false;
 
     map.on("load", async () => {
+      
+    map.getStyle().layers.forEach(layer => {
+    if (layer.type === "fill-extrusion") {
+      map.setLayoutProperty(layer.id, "visibility", "none");
+    }
+  });
+
+      
       // --- mesh source (tiles 直指定) ---
       map.addSource("mesh_src", { type: "vector", tiles: [MESH_TILES], minzoom: 0, maxzoom: 14 });
 
@@ -803,6 +811,7 @@
   </script>
 </body>
 </html>
+
 
 
 
